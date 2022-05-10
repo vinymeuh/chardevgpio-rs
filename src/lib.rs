@@ -38,6 +38,13 @@ pub struct Chip {
     file: File,
 }
 
+pub struct LineInfo {
+    pub offset: u32,
+    pub flags: u32,
+    pub name: String,
+    pub consumer: String,
+}
+
 impl Chip {
     pub fn new(path: &Path) -> Result<Self> {
         let f = File::open(path)?;
@@ -58,6 +65,27 @@ impl Chip {
             },
             lines: info.lines,
             file: f,
+        })
+    }
+
+    pub fn line_info(&mut self, offset: u32) -> Result<LineInfo> {
+        let mut info: uapi::gpioline_info = unsafe { mem::zeroed() };
+        info.line_offset = offset;
+        unsafe { uapi::gpio_get_lineinfo_ioctl(self.file.as_raw_fd(), &mut info)? };
+
+        Ok(LineInfo {
+            offset: info.line_offset,
+            flags: info.flags,
+            name: unsafe {
+                CStr::from_ptr(info.name.as_ptr())
+                    .to_owned()
+                    .into_string().unwrap() // TODO: remove unwrap()
+            },
+            consumer: unsafe {
+                CStr::from_ptr(info.consumer.as_ptr())
+                    .to_owned()
+                    .into_string().unwrap() // TODO: remove unwrap()
+            },           
         })
     }
 }

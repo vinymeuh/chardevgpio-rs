@@ -8,15 +8,25 @@ use chardevgpio::{Chip};
 
 fn print_chip_info(path: &Path) {
 
-    let chip = match Chip::new(path) {
+    let mut chip = match Chip::new(path) {
         Ok(chip) => chip,
         Err(err) => {
             eprintln!("{}: {:?}", path.display(), err);
             return;
         }        
     };
-
     println!("file = {}, name = {}, label = {}, lines = {}", path.display(), chip.name, chip.label, chip.lines);
+
+    for i in 0..chip.lines {
+        let line = match chip.line_info(i) {
+            Ok(line) => line,
+            Err(err) => {
+                eprintln!("line {:02}: {:?}", i, err);
+                return;
+            }
+        };
+        println!("    line {}: name = \"{}\", consumer = \"{}\", flags = ", line.offset, line.name, line.consumer);
+    }
 }
 
 
