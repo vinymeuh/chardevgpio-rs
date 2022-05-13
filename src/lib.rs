@@ -12,37 +12,37 @@ use nix;
 pub mod uapi;
 
 #[derive(Debug)]
-pub enum ChardevgpioError {
+pub enum Error {
     IOError(std::io::Error),
     IoctlError(nix::Error),
 }
 
-impl From<std::io::Error> for ChardevgpioError {
-    fn from(err: std::io::Error) -> ChardevgpioError {
-        ChardevgpioError::IOError(err)
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Error {
+        Error::IOError(err)
     }
 }
 
-impl From<nix::Error> for ChardevgpioError {
-    fn from(err: nix::Error) -> ChardevgpioError {
-        ChardevgpioError::IoctlError(err)
+impl From<nix::Error> for Error {
+    fn from(err: nix::Error) -> Error {
+        Error::IoctlError(err)
     }
 }
 
-type Result<T> = std::result::Result<T, ChardevgpioError>;
+type Result<T> = std::result::Result<T, Error>;
 
 pub struct Chip {
-    pub name: String,
-    pub label: String,
-    pub lines: u32,
+    name: String,
+    label: String,
+    lines: u32,
     file: File,
 }
 
 pub struct LineInfo {
-    pub offset: u32,
-    pub flags: u32,
-    pub name: String,
-    pub consumer: String,
+    offset: u32,
+    flags: u32,
+    name: String,
+    consumer: String,
 }
 
 impl Chip {
@@ -56,16 +56,28 @@ impl Chip {
             name: unsafe {
                 CStr::from_ptr(info.name.as_ptr())
                     .to_owned()
-                    .into_string().unwrap() // TODO: remove unwrap()
+                    .into_string().unwrap_or_default()
             },
             label: unsafe {
                 CStr::from_ptr(info.label.as_ptr())
                     .to_owned()
-                    .into_string().unwrap() // TODO: remove unwrap()
+                    .into_string().unwrap_or_default()
             },
             lines: info.lines,
             file: f,
         })
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub fn label(&self) -> &str {
+        self.label.as_str()
+    }
+
+    pub fn lines(&self) -> u32 {
+        self.lines
     }
 
     pub fn line_info(&mut self, offset: u32) -> Result<LineInfo> {
@@ -79,13 +91,32 @@ impl Chip {
             name: unsafe {
                 CStr::from_ptr(info.name.as_ptr())
                     .to_owned()
-                    .into_string().unwrap() // TODO: remove unwrap()
+                    .into_string().unwrap_or_default()
             },
             consumer: unsafe {
                 CStr::from_ptr(info.consumer.as_ptr())
                     .to_owned()
-                    .into_string().unwrap() // TODO: remove unwrap()
+                    .into_string().unwrap_or_default()
             },           
         })
+    }
+}
+
+
+impl LineInfo {
+    pub fn offset(&self) -> u32 {
+        self.offset
+    }
+
+    pub fn flags(&self) -> u32 {
+        self.flags
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
+    }
+
+    pub fn consumer(&self) -> &str {
+        self.consumer.as_str()
     }
 }
