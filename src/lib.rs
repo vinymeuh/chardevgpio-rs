@@ -8,7 +8,7 @@ use std::ops::BitAnd;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
-mod uapi;
+pub mod uapi;
 
 #[derive(Debug)]
 pub enum Error {
@@ -36,14 +36,6 @@ pub struct Chip {
     label: String,
     lines: u32,
     file: File,
-}
-
-/// Informations about a GPIO line.
-pub struct LineInfo {
-    offset: u32,
-    flags: u32,
-    name: String,
-    consumer: String,
 }
 
 impl Chip {
@@ -110,6 +102,32 @@ impl Chip {
             },
         })
     }
+
+    /// Return a set of Lines for read
+    pub fn request_reading_lines(&self, lines: &[u32], _consumer: &str) -> Result<Lines> {
+        let mut handle = uapi::gpiohandle_request {
+            lineoffsets: [0; uapi::GPIOHANDLES_MAX],
+            flags: uapi::GPIOHANDLE_REQUEST_INPUT,
+            default_values: [0; uapi::GPIOHANDLES_MAX],
+            consumer_label: [0; 32],
+            lines: lines.len() as u32, // number of lines requested in this request
+            fd: 0, // if request successful this field will contain a valid anonymous file handle
+        };
+
+        handle.lineoffsets[0..lines.len()].copy_from_slice(&lines); // TODO check lines.len <= uapi::GPIOHANDLES_MAX or self.lines)
+
+        unsafe { uapi::gpio_get_linehandle_ioctl(self.file.as_raw_fd(), &mut handle)? };
+
+        Ok(Lines { h: handle })
+    }
+}
+
+/// Informations about a GPIO line.
+pub struct LineInfo {
+    offset: u32,
+    flags: u32,
+    name: String,
+    consumer: String,
 }
 
 impl LineInfo {
@@ -166,5 +184,21 @@ impl LineInfo {
     /// Return true if the line is disabled.
     pub fn is_disable(&self) -> bool {
         self.flags.bitand(uapi::GPIOLINE_FLAG_BIAS_DISABLE) == uapi::GPIOLINE_FLAG_BIAS_DISABLE
+    }
+}
+
+/// A set of lines that can be used simultaneously
+pub struct Lines {
+    h: uapi::gpiohandle_request,
+}
+
+impl Lines {
+    pub fn read(&self) -> Result<Vec<u8>> {
+        let mut hdata = uapi::gpiohandle_data {
+            values: [0; uapi::GPIOHANDLES_MAX],
+        };
+
+        unsafe { uapi::gpiohandle_get_line_values_ioctl(self.h.fd, &mut hdata)? };
+        Ok(hdata.values.to_vec())
     }
 }
